@@ -250,31 +250,40 @@ class HardDecoder(player: AnimPlayer) : Decoder(player), SurfaceTexture.OnFrameA
                     else -> {
                         var loop = 0
                         if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
-                            loop = --playLoop
-                            player.playLoop = playLoop // 消耗loop次数 自动恢复后能有正确的loop次数
-                            outputDone = playLoop <= 0
+                            // if playLoop < 0 → infinite loop
+                            if (playLoop < 0) {
+                                loop = -1  // mark as infinite loop
+                                outputDone = false
+                            } else {
+                                loop = --playLoop
+                                player.playLoop = playLoop // 消耗loop次数 自动恢复后能有正确的loop次数
+                                outputDone = playLoop <= 0
+                            }
                         }
+                        
                         val doRender = !outputDone
                         if (doRender) {
                             speedControlUtil.preRender(bufferInfo.presentationTimeUs)
                         }
-
+                        
                         if (needYUV && doRender) {
                             yuvProcess(decoder, decoderStatus)
                         }
-
+                        
                         // release & render
                         decoder.releaseOutputBuffer(decoderStatus, doRender && !needYUV)
-
+                        
                         if (frameIndex == 0 && !isLoop) {
                             onVideoStart()
                         }
                         player.pluginManager.onDecoding(frameIndex)
                         onVideoRender(frameIndex, player.configManager.config)
-
+                        
                         frameIndex++
                         ALog.d(TAG, "decode frameIndex=$frameIndex")
-                        if (loop > 0) {
+                        
+                        // loop handling
+                        if (loop > 0 || loop == -1) { // -1 = infinite loop
                             ALog.d(TAG, "Reached EOD, looping")
                             player.pluginManager.onLoopStart()
                             extractor.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
@@ -284,9 +293,11 @@ class HardDecoder(player: AnimPlayer) : Decoder(player), SurfaceTexture.OnFrameA
                             frameIndex = 0
                             isLoop = true
                         }
+                        
                         if (outputDone) {
                             release(decoder, extractor)
                         }
+
                     }
                 }
             }
