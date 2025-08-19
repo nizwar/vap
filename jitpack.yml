@@ -1,0 +1,9 @@
+jdk:
+  - openjdk11
+before_install:
+  - export GRADLE_OPTS="-Xmx2g -Dorg.gradle.daemon=false"
+  - export JAVA_HOME=$JAVA11_HOME
+install:
+  - cd Android/PlayerProj
+  - chmod +x gradlew
+  - ./gradlew clean build publishToMavenLocal
